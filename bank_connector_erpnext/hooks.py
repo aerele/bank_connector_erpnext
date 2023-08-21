@@ -5,7 +5,7 @@ app_title = "ERPNext - Bank Connector"
 app_publisher = "Aerele Technologies Private Limited"
 app_description = "ERPNext - Bank Connector"
 app_email = "hello@aerele.in"
-app_license = "GPLv3"
+app_license = "GPLv3 "
 
 # Includes in <head>
 # ------------------

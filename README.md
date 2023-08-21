@@ -4,4 +4,4 @@ ERPNext - Bank Connector
 
 #### License
 
-GPLv3
+GPLv3 
