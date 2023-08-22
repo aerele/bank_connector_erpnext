@@ -34,6 +34,11 @@ app_license = "GPLv3 "
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
+doctype_js = {
+	"Payment Request": "public/js/payment_request.js",
+	"Payment Order" : "public/js/payment_order.js",
+}
+
 # Home Pages
 # ----------
 
@@ -65,6 +70,8 @@ app_license = "GPLv3 "
 
 # before_install = "bank_connector_erpnext.install.before_install"
 # after_install = "bank_connector_erpnext.install.after_install"
+after_install = "bank_connector_erpnext.erpnext___bank_connector.install.after_install"
+
 
 # Uninstallation
 # ------------
@@ -114,6 +121,11 @@ app_license = "GPLv3 "
 #	"ToDo": "custom_app.overrides.CustomToDo"
 # }
 
+override_doctype_class = {
+	"Payment Order": "bank_connector_erpnext.erpnext___bank_connector.override.payment_order.CustomPaymentOrder",
+	"Payment Request": "bank_connector_erpnext.erpnext___bank_connector.override.payment_request.CustomPaymentRequest"
+}
+
 # Document Events
 # ---------------
 # Hook on document methods and events
@@ -125,6 +137,15 @@ app_license = "GPLv3 "
 #		"on_trash": "method"
 #	}
 # }
+
+doc_events = {
+	"Bank Account": {
+		"validate": "bank_connector_erpnext.erpnext___bank_connector.doc_events.bank_account.validate_ifsc_code",
+	},
+	"Payment Request": {
+		"validate": "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_request.valdidate_bank_for_wire_transfer",
+	}
+}
 
 # Scheduled Tasks
 # ---------------
@@ -158,6 +179,9 @@ app_license = "GPLv3 "
 # override_whitelisted_methods = {
 #	"frappe.desk.doctype.event.event.get_events": "bank_connector_erpnext.event.get_events"
 # }
+override_whitelisted_methods = {
+	"erpnext.accounts.doctype.payment_request.payment_request.make_payment_request": "bank_connector_erpnext.erpnext___bank_connector.override.payment_request.make_payment_request"
+}
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
