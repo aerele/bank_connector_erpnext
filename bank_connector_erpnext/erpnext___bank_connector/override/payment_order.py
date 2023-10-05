@@ -5,6 +5,12 @@ from bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_order im
 class CustomPaymentOrder(PaymentOrder):
 	def validate(self):
 		self.validate_summary()
+		payments = frappe.get_all("Payment Order Summary",{"docstatus":1,"payment_entry":("is","set")},pluck="payment_entry")
+		payment_ref = frappe.get_all("Payment Order Reference",{"docstatus":1,"reference_doctype":"Payment Entry","reference_name":["!=",self.name]},pluck = "reference_name")
+		payments = payments+payment_ref
+		for i in self.references:
+			if i.reference_name in payments:
+				frappe.throw("Payment Entry - {0} already Initiated/Processed".format(i.reference_name))
 
 	def validate_summary(self):
 		if len(self.summary) <= 0:
@@ -38,7 +44,8 @@ class CustomPaymentOrder(PaymentOrder):
 			frappe.throw("Summary isn't matching the references")
 
 	def on_submit(self):
-		make_payment_entries(self.name)
+		if not self.payment_order_type == "Payment Entry":
+			make_payment_entries(self.name)
 		frappe.db.set_value("Payment Order", self.name, "status", "Pending")
 
 		for ref in self.references:

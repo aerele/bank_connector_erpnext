@@ -30,6 +30,29 @@ frappe.ui.form.on('Payment Order', {
 					}
 				});
 			}, __("Get from"));
+			frm.add_custom_button(__('Payment Entry'), function() {
+				frm.trigger("remove_row_if_empty");
+				erpnext.utils.map_current_doc({
+					method: "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_entry.make_payment_order",
+					source_doctype: "Payment Entry",
+					target: frm,
+					setters: {
+						party: frm.doc.supplier || "",
+						paid_amount:"",
+					},
+					get_query: function() {
+						var filters = {
+							company: frm.doc.company,
+							posting_date : ["<=", frm.doc.posting_date],
+							payment_type:"Pay"
+						};
+						return {
+							query: "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_entry.fetch_unprocessed_payment_entries",
+							filters: filters
+						};
+					}
+				});
+			}, __("Get from"));
 
 			// frm.add_custom_button(__('Purchase Invoice'), function() {
 			// 	frm.trigger("remove_row_if_empty");
