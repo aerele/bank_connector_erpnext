@@ -50,13 +50,15 @@ def make_payment_order(source_name, target_doc=None):
 @frappe.validate_and_sanitize_search_inputs
 def fetch_unprocessed_payment_entries(doctype, txt, searchfield, start, page_len, filters, as_dict):
 	doctype = "Payment Entry"
+	condition = ""
 	fields = get_fields(doctype, ["name", "party", "paid_amount"])
 	por = frappe.db.sql('''select `tabPayment Order Reference`.reference_name as name from `tabPayment Entry` 
 					 right join `tabPayment Order Reference` on `tabPayment Entry`.name = `tabPayment Order Reference`.reference_name 
 					 where `tabPayment Entry`.docstatus = 1 and `tabPayment Order Reference`.reference_doctype = "Payment Entry" ''',as_dict=1)
+	if len(por) and "name" in por[0]:
+		condition += '''and `tabPayment Entry`.name not in ({0}) '''.format(", ".join(["'{0}'".format(f["name"]) for f in por]))
 	sql = frappe.db.sql('''select {0} from `tabPayment Entry` left join `tabPayment Order Summary` 
 					 on `tabPayment Entry`.name = `tabPayment Order Summary`.payment_entry 
-					 where `tabPayment Order Summary`.name is null and 
-					`tabPayment Entry`.name not in ({2}) and 
-					 `tabPayment Entry`.docstatus = 1 {1}'''.format(", ".join(["`tabPayment Entry`.{0}".format(f) for f in fields]),get_filters_cond(doctype,filters,[]),", ".join(["'{0}'".format(f["name"]) for f in por])),as_dict=1)
+					 where `tabPayment Order Summary`.name is null {2} and 
+					 `tabPayment Entry`.docstatus = 1 {1}'''.format(", ".join(["`tabPayment Entry`.{0}".format(f) for f in fields]),get_filters_cond(doctype,filters,[]),condition),as_dict=1)
 	return sql
