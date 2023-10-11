@@ -10,9 +10,17 @@
  "field_order": [
   "bank_account",
   "url",
+  "has_otp",
   "column_break_pygnq",
   "api_key",
-  "api_secret"
+  "api_secret",
+  "section_break_d65ns",
+  "corpid",
+  "aggrid",
+  "urn",
+  "column_break_ziteq",
+  "userid",
+  "aggrname"
  ],
  "fields": [
   {
@@ -40,11 +48,50 @@
    "fieldname": "api_secret",
    "fieldtype": "Password",
    "label": "API Secret"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_otp",
+   "fieldtype": "Check",
+   "label": "Has OTP"
+  },
+  {
+   "fieldname": "section_break_d65ns",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "corpid",
+   "fieldtype": "Data",
+   "label": "CorpID"
+  },
+  {
+   "fieldname": "aggrid",
+   "fieldtype": "Data",
+   "label": "AggrID"
+  },
+  {
+   "fieldname": "urn",
+   "fieldtype": "Data",
+   "label": "URN"
+  },
+  {
+   "fieldname": "column_break_ziteq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "userid",
+   "fieldtype": "Data",
+   "label": "UserID"
+  },
+  {
+   "fieldname": "aggrname",
+   "fieldtype": "Data",
+   "label": "AggrName"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2023-08-22 06:38:12.136000",
+ "modified": "2023-10-10 20:15:33.210404",
  "modified_by": "Administrator",
  "module": "ERPNext - Bank Connector",
  "name": "Bank Connector",

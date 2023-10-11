@@ -6,8 +6,39 @@ import random
 
 # from bank_connector_erpnext.erpnext___bank_connector.payments.payment import process_payment
 
+
 @frappe.whitelist()
-def make_bank_payment(docname):
+def call_otp_sender(bank_account, total_amount):
+	connector_doc = frappe.get_doc("Bank Connector", bank_account)
+	if not connector_doc:
+		frappe.throw("Please configure Bank Connector")
+	
+	api_key = connector_doc.api_key
+	api_secret = connector_doc.get_password("api_secret")
+	url = f"{connector_doc.url}/api/method/icici_integration_server.api.generate_otp"
+	headers = headers = {
+		"Authorization": f"token {api_key}:{api_secret}",
+		"Content-Type": "application/json",
+	}
+
+	payment_payload = {
+        'CORPID': connector_doc.corpid,
+        'USERID': connector_doc.userid,
+        'AGGRID': connector_doc.aggrid,
+        'AGGRNAME': connector_doc.aggrname,
+        'URN': connector_doc.urn,
+        'UNIQUEID': random.randint(100000000000,999999999999),
+        'AMOUNT': total_amount
+	}
+
+	response = requests.request("POST", url, headers=headers, data=json.dumps({"payload": payment_payload}))
+	print(response.text)
+
+	# if response.status_code == 200:
+	# 	response_data = json.loads(response.text)
+
+@frappe.whitelist()
+def make_bank_payment(docname, otp=None):
 	payment_order_doc = frappe.get_doc("Payment Order", docname)
 	count = 0
 	for i in payment_order_doc.summary:

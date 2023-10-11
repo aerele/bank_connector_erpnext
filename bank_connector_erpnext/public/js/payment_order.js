@@ -87,19 +87,55 @@ frappe.ui.form.on('Payment Order', {
 				}
 				if (uninitiated_payments > 0) {
 					frm.add_custom_button(__('Initiate Payment'), function() {
-						frappe.call({
-							method: "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_order.make_bank_payment",
-							freeze: 1,
-							args: {
-								docname: frm.doc.name,
-							},
-							callback: function(r) {
-								if(r.message) {
-									frappe.msgprint(r.message)
+						// check has_otp in bank connector
+						frappe.db.get_value("Bank Connector", {"bank_account": cur_frm.doc.company_bank_account}, 'has_otp', (r) => {
+							frappe.call({
+								method: "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_order.call_otp_sender",
+								args: {
+									bank_account: cur_frm.doc.company_bank_account,
+									total_amount: cur_frm.doc.total
+								},
+								callback: function(e) {
+									frappe.msgprint(e.message);
 								}
-								frm.reload_doc();
+							})
+							if (r['has_otp']) {
+								frappe.prompt({
+									label: 'Enter OTP',
+									fieldname: 'otp',
+									fieldtype: 'Data'
+								}, (values) => {
+									let cur_otp = values.otp;
+									frappe.call({
+										method: "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_order.make_bank_payment",
+										args: {
+											docname: frm.doc.name, 
+											otp: cur_otp,
+										},
+										callback: function(r) {
+											if (r.message) {
+												frappe.msgprint(r.message)
+											}
+										}
+									})
+								});
 							}
-						});
+							
+							
+							// frappe.call({
+							// 	method: "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_order.make_bank_payment",
+							// 	freeze: 1,
+							// 	args: {
+							// 		docname: frm.doc.name,
+							// 	},
+							// 	callback: function(r) {
+							// 		if(r.message) {
+							// 			frappe.msgprint(r.message)
+							// 		}
+							// 		frm.reload_doc();
+							// 	}
+							// });
+						}); 	
 					});
 				}
 			}
