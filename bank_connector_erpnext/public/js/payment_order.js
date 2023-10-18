@@ -1,4 +1,14 @@
 frappe.ui.form.on('Payment Order', {
+	setup:function(frm){
+		frm.set_query("bank_account", "references", function(frm, cdt, cdn) {
+            const row = locals[cdt][cdn];
+            let filters = {"party_type":"Supplier","party":row.party }
+            
+            return {
+                filters : filters
+            }
+        });
+	},
 	onload(frm) {
 		frm.set_df_property("payment_order_type", "options", [""].concat(["Payment Request", "Payment Entry", "Purchase Invoice"]));
 		frm.refresh_field("payment_order_type");
@@ -12,6 +22,7 @@ frappe.ui.form.on('Payment Order', {
 		frm.refresh_field("payment_order_type");
 		if (frm.doc.docstatus == 0) {
 			frm.add_custom_button(__('Payment Request'), function() {
+				frm.fields_dict.references.grid.update_docfield_property("bank_account", "read_only", 1);
 				frm.trigger("remove_row_if_empty");
 				erpnext.utils.map_current_doc({
 					method: "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_request.make_payment_order",
@@ -32,6 +43,7 @@ frappe.ui.form.on('Payment Order', {
 			}, __("Get from"));
 			frm.add_custom_button(__('Payment Entry'), function() {
 				frm.trigger("remove_row_if_empty");
+				frm.fields_dict.references.grid.update_docfield_property("bank_account", "read_only", 0);
 				erpnext.utils.map_current_doc({
 					method: "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_entry.make_payment_order",
 					source_doctype: "Payment Entry",
@@ -43,12 +55,11 @@ frappe.ui.form.on('Payment Order', {
 					get_query: function() {
 						var filters = {
 							company: frm.doc.company,
-							posting_date : ["<=", frm.doc.posting_date],
 							payment_type:"Pay"
 						};
 						return {
 							query: "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_entry.fetch_unprocessed_payment_entries",
-							filters: filters
+							filters: filters,
 						};
 					}
 				});
@@ -156,6 +167,7 @@ frappe.ui.form.on('Payment Order', {
 		frappe.call({
 			method: "bank_connector_erpnext.erpnext___bank_connector.override.payment_order.get_party_summary",
 			args: {
+				po_type:frm.doc.payment_order_type,
 				references: frm.doc.references,
 				company_bank_account: frm.doc.company_bank_account
 			},
@@ -178,6 +190,7 @@ frappe.ui.form.on('Payment Order', {
 						row.project = summary_data[i].project;
 						row.tax_withholding_category = summary_data[i].tax_withholding_category;
 						row.reference_doctype = summary_data[i].reference_doctype;
+						row.payment_entry = summary_data[i].payment_entry;
 					}
 					frm.refresh_field("summary");
 					frm.doc.total = doc_total;

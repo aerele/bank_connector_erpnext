@@ -12,6 +12,9 @@ def make_payment_order(source_name, target_doc=None):
 	def set_missing_values(source, target):
 		target.payment_order_type = "Payment Entry"
 		account = ""
+		party_bank_account =""
+		if not source.party_bank_account:
+			party_bank_account = frappe.db.get_value("Bank Account",{"party_type":source.party_type,"party":source.party}) or ""
 		if source.paid_to:
 			account = source.paid_to
 		target.append(
@@ -59,6 +62,6 @@ def fetch_unprocessed_payment_entries(doctype, txt, searchfield, start, page_len
 		condition += '''and `tabPayment Entry`.name not in ({0}) '''.format(", ".join(["'{0}'".format(f["name"]) for f in por]))
 	sql = frappe.db.sql('''select {0} from `tabPayment Entry` left join `tabPayment Order Summary` 
 					 on `tabPayment Entry`.name = `tabPayment Order Summary`.payment_entry 
-					 where `tabPayment Order Summary`.name is null {2} and 
-					 `tabPayment Entry`.docstatus = 1 {1}'''.format(", ".join(["`tabPayment Entry`.{0}".format(f) for f in fields]),get_filters_cond(doctype,filters,[]),condition),as_dict=1)
+					 where `tabPayment Order Summary`.name is null {2} and  
+					 `tabPayment Entry`.docstatus = 1 {1} and `tabPayment Entry`.{3} like "%{4}%" limit {5} offset {6}'''.format(", ".join(["`tabPayment Entry`.{0}".format(f) for f in fields]),get_filters_cond(doctype,filters,[]),condition,searchfield,txt,page_len,start),as_dict=1)
 	return sql

@@ -68,7 +68,7 @@ class CustomPaymentOrder(PaymentOrder):
 
 
 @frappe.whitelist()
-def get_party_summary(references, company_bank_account):
+def get_party_summary(po_type,references, company_bank_account):
 	references = json.loads(references)
 	if not len(references) or not company_bank_account:
 		return
@@ -79,14 +79,14 @@ def get_party_summary(references, company_bank_account):
 	summary = {}
 	for ref in references:
 		ref = frappe._dict(ref)
-		if (ref.party_type, ref.party, ref.bank_account, ref.account, ref.cost_center, ref.project, ref.tax_withholding_category, ref.reference_doctype) in summary:
-			summary[(ref.party_type, ref.party, ref.bank_account, ref.account, ref.cost_center, ref.project, ref.tax_withholding_category, ref.reference_doctype)] += ref.amount
+		if (ref.party_type, ref.party, ref.bank_account, ref.account, ref.cost_center, ref.project, ref.tax_withholding_category, ref.reference_doctype, ref.reference_name) in summary:
+			summary[(ref.party_type, ref.party, ref.bank_account, ref.account, ref.cost_center, ref.project, ref.tax_withholding_category, ref.reference_doctype, ref.reference_name)] += ref.amount
 		else:
-			summary[(ref.party_type, ref.party, ref.bank_account, ref.account, ref.cost_center, ref.project, ref.tax_withholding_category, ref.reference_doctype)] = ref.amount
+			summary[(ref.party_type, ref.party, ref.bank_account, ref.account, ref.cost_center, ref.project, ref.tax_withholding_category, ref.reference_doctype, ref.reference_name)] = ref.amount
 
 	result = []
 	for k, v in summary.items():
-		party_type, party, bank_account, account, cost_center, project, tax_withholding_category, reference_doctype = k
+		party_type, party, bank_account, account, cost_center, project, tax_withholding_category, reference_doctype,reference_name = k
 		summary_line_item = {}
 		summary_line_item["party_type"] = party_type
 		summary_line_item["party"] = party
@@ -96,6 +96,11 @@ def get_party_summary(references, company_bank_account):
 		summary_line_item["project"] = project
 		summary_line_item["tax_withholding_category"] = tax_withholding_category
 		summary_line_item["reference_doctype"] = reference_doctype
+		if po_type == "Payment Entry":
+			summary_line_item["payment_entry"] = reference_name
+		else:
+			summary_line_item["payment_entry"] = ""
+
 		summary_line_item["amount"] = v
 		result.append(summary_line_item)
 	
