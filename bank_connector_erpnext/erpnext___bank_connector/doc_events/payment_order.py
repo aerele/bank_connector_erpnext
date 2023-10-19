@@ -127,9 +127,6 @@ def check_summary_status(docname, response_text):
 	result_dic = {}
 	failure_dic = {}
 	po_doc = frappe.get_doc("Payment Order", docname)
-	frappe.log_error(
-		title="Cron called", message=str(docname)+" - "+str(response_text) 
-	)
 	res_json = response_text['XML'] if 'XML' in response_text.keys() else ''
 	if not res_json:
 		frappe.log_error(
