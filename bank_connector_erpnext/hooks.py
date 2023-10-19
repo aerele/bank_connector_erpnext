@@ -150,7 +150,12 @@ doc_events = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
+scheduler_events = {
+	"cron": {
+		"0/5 * * * *": [
+			"bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_order.recursive_status_check"
+		]
+	}
 #	"all": [
 #		"bank_connector_erpnext.tasks.all"
 #	],
@@ -166,7 +171,7 @@ doc_events = {
 #	"monthly": [
 #		"bank_connector_erpnext.tasks.monthly"
 #	],
-# }
+}
 
 # Testing
 # -------

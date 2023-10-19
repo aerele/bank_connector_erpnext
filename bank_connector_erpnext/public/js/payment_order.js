@@ -92,8 +92,9 @@ frappe.ui.form.on('Payment Order', {
 							frappe.call({
 								method: "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_order.call_otp_sender",
 								args: {
+									docname: cur_frm.doc.name,
 									bank_account: cur_frm.doc.company_bank_account,
-									total_amount: cur_frm.doc.total
+									total_amount: cur_frm.doc.total,
 								},
 								callback: function(e) {
 									frappe.msgprint(e.message);
@@ -109,8 +110,9 @@ frappe.ui.form.on('Payment Order', {
 									frappe.call({
 										method: "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_order.make_bank_payment",
 										args: {
-											docname: frm.doc.name, 
-											otp: cur_otp,
+											docname: cur_frm.doc.name,
+											bank_account: cur_frm.doc.company_bank_account,
+											otp: cur_otp
 										},
 										callback: function(r) {
 											if (r.message) {
@@ -120,21 +122,6 @@ frappe.ui.form.on('Payment Order', {
 									})
 								});
 							}
-							
-							
-							// frappe.call({
-							// 	method: "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_order.make_bank_payment",
-							// 	freeze: 1,
-							// 	args: {
-							// 		docname: frm.doc.name,
-							// 	},
-							// 	callback: function(r) {
-							// 		if(r.message) {
-							// 			frappe.msgprint(r.message)
-							// 		}
-							// 		frm.reload_doc();
-							// 	}
-							// });
 						}); 	
 					});
 				}
@@ -151,12 +138,14 @@ frappe.ui.form.on('Payment Order', {
 				}
 
 				if (pending_status_check > 0) {
+					frm.remove_custom_button(__('Initiate Payment'))
 					frm.add_custom_button(__('Get Status'), function() {
 						frappe.call({
 							method: "bank_connector_erpnext.erpnext___bank_connector.doc_events.payment_order.get_payment_status",
 							freeze: 1,
 							args: {
 								docname: frm.doc.name,
+								bank_account: frm.doc.company_bank_account,
 							},
 							callback: function(r) {
 								if(r.message) {

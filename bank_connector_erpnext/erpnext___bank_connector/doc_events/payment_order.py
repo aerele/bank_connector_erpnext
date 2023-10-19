@@ -3,12 +3,16 @@ from frappe.utils import nowdate
 import json
 import uuid, requests
 import random
+from base64 import b64decode, b64encode
+from frappe.utils import today
 
 # from bank_connector_erpnext.erpnext___bank_connector.payments.payment import process_payment
 
-
+# * api to call the otp sender
 @frappe.whitelist()
-def call_otp_sender(bank_account, total_amount):
+def call_otp_sender(docname, bank_account, total_amount):
+	unique_id = random.randint(100000000000,999999999999)
+	frappe.db.set_value('Payment Order', docname, 'custom_unique_id', unique_id)
 	connector_doc = frappe.get_doc("Bank Connector", bank_account)
 	if not connector_doc:
 		frappe.throw("Please configure Bank Connector")
@@ -16,64 +20,177 @@ def call_otp_sender(bank_account, total_amount):
 	api_key = connector_doc.api_key
 	api_secret = connector_doc.get_password("api_secret")
 	url = f"{connector_doc.url}/api/method/icici_integration_server.api.generate_otp"
-	headers = headers = {
+	headers = {
 		"Authorization": f"token {api_key}:{api_secret}",
 		"Content-Type": "application/json",
 	}
 
 	payment_payload = {
-        'CORPID': connector_doc.corpid,
-        'USERID': connector_doc.userid,
-        'AGGRID': connector_doc.aggrid,
-        'AGGRNAME': connector_doc.aggrname,
-        'URN': connector_doc.urn,
-        'UNIQUEID': random.randint(100000000000,999999999999),
-        'AMOUNT': total_amount
+		'CORPID': connector_doc.corpid,
+		'USERID': connector_doc.userid,
+		'AGGRID': connector_doc.aggrid,
+		'AGGRNAME': connector_doc.aggrname,
+		'URN': connector_doc.urn,
+		'UNIQUEID': str(unique_id),
+		'AMOUNT': str(float(total_amount))
 	}
 
 	response = requests.request("POST", url, headers=headers, data=json.dumps({"payload": payment_payload}))
-	print(response.text)
+	res_json = json.loads(json.loads(response.text)['message'])
 
-	# if response.status_code == 200:
-	# 	response_data = json.loads(response.text)
+	if 'RESPONSE' in res_json.keys() and res_json['RESPONSE'].lower() == 'failure':
+		frappe.throw(
+			title= 'Error',
+			msg=res_json['MESSAGE']
+		)
+	elif 'RESPONSE' in res_json.keys() and res_json['RESPONSE'].lower() == 'success':
+		pass
 
+
+def int_float(amt):
+	val = int(amt) if amt.is_integer() else amt
+	return val
+
+
+# * api to make bulk payment
 @frappe.whitelist()
-def make_bank_payment(docname, otp=None):
+def make_bank_payment(docname, bank_account, otp=None):
 	payment_order_doc = frappe.get_doc("Payment Order", docname)
-	count = 0
+	doc_name = docname.replace("-", "")
+	bank_ac = frappe.get_doc("Bank Account", payment_order_doc.company_bank_account)
+	connector_doc = frappe.get_doc("Bank Connector", bank_account)
+	api_key = connector_doc.api_key
+	api_secret = connector_doc.api_secret
+	url = f"{connector_doc.url}/api/method/icici_integration_server.api.make_payment"
+	headers = {
+		"Authorization": f"token {api_key}:{api_secret}",
+		"Content-Type": "application/json",
+	}
+
+	ls = []
+	
+	first_line = "{}|{}|{}|{}|{}|{}|{}|{}^".format("FHR",len(payment_order_doc.summary)+1,payment_order_doc.posting_date.strftime('%m/%d/%Y'), doc_name,int_float(payment_order_doc.total),"INR",bank_ac.bank_account_no,"0011")
+	ls.append(first_line)
+	second_line ="{}|{}|{}|{}|{}|{}|{}|{}|{}^".format("MDR",bank_ac.bank_account_no,"0011",payment_order_doc.company.replace(" ","")[:30],int_float(payment_order_doc.total),'INR', doc_name,"ICIC0000011","WIB")
+	ls.append(second_line)
+	my_ba = frappe.get_doc("Bank Account", payment_order_doc.company_bank_account)
 	for i in payment_order_doc.summary:
-		if not i.payment_initiated:
-			invoices = []
-			payment_response = process_payment(i, payment_order_doc.company_bank_account, invoices=invoices)
-			if "payment_status" in payment_response and payment_response["payment_status"] == "Initiated":
+		ba = frappe.get_doc("Bank Account", i.bank_account)
+		if(ba.bank == my_ba.bank):
+			d = frappe.get_doc("Bank Account", i.bank_account)
+			mcw_st = "{}|{}|{}|{}|{}|{}|{}|{}|{}^".format("MCW",d.bank_account_no,d.bank_account_no[:4],d.party.replace(" ","")[:30],int_float(i.amount),"INR",i.name,d.branch_code,"WIB")
+			ls.append(mcw_st)
+		else:
+			d = frappe.get_doc("Bank Account", i.bank_account)
+			mco_st = "{}|{}|{}|{}|{}|{}|{}|{}|{}^".format("MCO", d.bank_account_no,"0011",d.party.replace(" ","")[:30],int_float(i.amount),"INR",i.name,"NFT",d.branch_code)
+			ls.append(mco_st)
+	result = '\n'.join(ls)
+	byte_like = str.encode(result)
+	encode_result = b64encode(byte_like).decode('utf-8')
+	data = {
+		"FILE_DESCRIPTION": str(doc_name),
+		"CORP_ID": str(connector_doc.corpid),
+		"USER_ID": str(connector_doc.userid),
+		"AGGR_ID": str(connector_doc.aggrid),
+		"AGGR_NAME": str(connector_doc.aggrname),
+		"URN": str(connector_doc.urn),
+		"UNIQUE_ID": str(payment_order_doc.custom_unique_id), 
+		"AGOTP": str(otp),
+		"FILE_NAME": str(doc_name+".txt"),
+		"FILE_CONTENT": str(encode_result)
+	}
+
+	response = requests.request("POST", url, headers=headers, data=json.dumps({"payload": data}))
+	res_json = json.loads(json.loads(response.text)['message'])
+
+#	action for failure response - works perfect
+	if 'Response' in res_json.keys() and res_json['Response'] == 'Failure':
+		frappe.log_error(
+			title="bulk payment api error", message="Payment Order Number : "+ str(docname) +"\n"+ res_json['Message']
+		)
+		frappe.throw(
+			title= 'Error',
+			msg=res_json['Message']
+		)
+	
+#	action for success response
+	if 'FILE_SEQUENCE_NUM' in res_json.keys() and payment_order_doc.custom_unique_id == str(res_json['UNIQUE_ID']): 
+		frappe.db.sql("update `tabPayment Order` set custom_file_sequence_no={} where name='{}' ".format(res_json['FILE_SEQUENCE_NUM'], docname))
+		for i in payment_order_doc.summary:
+			if not i.payment_initiated:
 				frappe.db.set_value("Payment Order Summary", i.name, "payment_initiated", 1)
 				frappe.db.set_value("Payment Order Summary", i.name, "payment_status", "Initiated")
-				count += 1
-			else:
-				frappe.db.set_value("Payment Order Summary", i.name, "payment_status", "Failed")
-				if "message" in payment_response:
-					frappe.db.set_value("Payment Order Summary", i.name, "message", payment_response["message"])
-
-	payment_order_doc.reload()
-	processed_count = 0
-	for i in payment_order_doc.summary:
-		if i.payment_initiated:
-			processed_count += 1
-	
-	if processed_count == len(payment_order_doc.summary):
 		frappe.db.set_value("Payment Order", docname, "status", "Initiated")
 
-	return {"message": f"{count} payments initiated"}
+# * Used by get_payment_status() to check and update status of every row in payment order summary
+def check_summary_status(docname, response_text):
+	result_dic = {}
+	failure_dic = {}
+	po_doc = frappe.get_doc("Payment Order", docname)
+	frappe.log_error(
+		title="Cron called", message=str(docname)+" - "+str(response_text) 
+	)
+	res_json = response_text['XML'] if 'XML' in response_text.keys() else ''
+	if not res_json:
+		frappe.log_error(
+			title="Reverse MOS", message="Payment Order Number : "+ str(docname) +"\n"+ str(response_text)
+		)
 
+	if ("RESPONSE" in res_json.keys()) and res_json["RESPONSE"] == "SUCCESS" and po_doc.custom_file_sequence_no == str(res_json['FILE_SEQUENCE_NUM']):
+		if 'Record' in res_json['FILEUPLOAD_BINARY_OUTPUT']['Records'].keys():
+			records = res_json['FILEUPLOAD_BINARY_OUTPUT']['Records']['Record']
+			for i in range(1, len(records)):
+				if records[i].split("|")[-3] == 'Payment Success':
+					result_dic[records[i].split("|")[2]+"@#$%"+records[i].split("|")[6]] = records[i].split("|")[-5]+"@#$%"+today()
+				else:
+					failure_dic[records[i].split("|")[2]] = records[i].split("|")[6]
 
+			for i in po_doc.summary:
+				po_bank = frappe.get_doc("Bank Account", i.bank_account)
+				if po_bank.bank_account_no+"@#$%"+str(i.amount) in result_dic.keys() and not i.payment_status == 'Processed':
+					if frappe.db.exists({"doctype": "Payment Entry", "name": i.payment_entry}):
+						frappe.db.set_value("Payment Entry", i.payment_entry, 'reference_no', result_dic[po_bank.bank_account_no+"@#$%"+str(i.amount)].split('@#$%')[0])
+						frappe.db.set_value("Payment Entry", i.payment_entry, 'reference_date', result_dic[po_bank.bank_account_no+"@#$%"+str(i.amount)].split('@#$%')[1])
+						frappe.db.set_value(i.doctype, i.name, 'payment_status', "Processed")
+
+				if po_bank.bank_account_no in failure_dic.keys() and failure_dic[po_bank.bank_account_no] == i.amount:
+					frappe.db.set_value(i.doctype, i.name, 'payment_status', "Failed")
+
+# * api to get status of payment summary
 @frappe.whitelist()
-def get_payment_status(docname):
+def get_payment_status(docname, bank_account):
 	payment_order_doc = frappe.get_doc("Payment Order", docname)
-	for i in payment_order_doc.summary:
-		if i.payment_initiated and i.payment_status in ["Initiated"]:
-			get_response(i, payment_order_doc.company_bank_account)
-	payment_order_doc.reload()
+	connector_doc = frappe.get_doc("Bank Connector", bank_account)
+	api_key = connector_doc.api_key
+	api_secret = connector_doc.api_secret
+	url = f"{connector_doc.url}/api/method/icici_integration_server.api.get_status"
+	headers = {
+		"Authorization": f"token {api_key}:{api_secret}",
+		"Content-Type": "application/json",
+	}
 
+	data = {
+	  "CORPID": connector_doc.corpid,
+	  "USERID": connector_doc.corpid+"."+connector_doc.userid,
+	  "AGGRID": connector_doc.aggrid,
+	  "URN": connector_doc.urn,
+	  "FILESEQNUM": payment_order_doc.custom_file_sequence_no,
+	  "ISENCRYPTED":"N"
+  	}
+
+	response = requests.request("POST", url, headers=headers, data=json.dumps({"payload": data}))
+	res_json = json.loads(json.loads(response.text)['message'])
+	frappe.db.set_value("Payment Order", docname, 'custom_response', str(res_json))
+
+	check_summary_status(docname, res_json)
+
+# * continous status check for every 10 minutes
+def recursive_status_check():
+	po = frappe.get_list("Payment Order Summary", {'docstatus': 1, 'payment_status': 'Initiated'}, pluck='parent')
+	po = list(set(po))
+	for i in po:
+		po_doc = frappe.get_doc('Payment Order', i)
+		get_payment_status(po_doc.name, po_doc.company_bank_account)
 
 @frappe.whitelist()
 def modify_approval_status(items, approval_status):
