@@ -129,6 +129,7 @@ def get_payment_status(doc):
 	payment_status = None
 	if response.status_code == 200:
 		response_data = json.loads(response.text)
+		print("response","\n\n\n",response_data)
 		if "Data" in response_data and response_data["Data"]:
 			if "Initiation" in response_data["Data"] and response_data["Data"]["Initiation"]:
 				if "EndToEndIdentification" in response_data["Data"]["Initiation"] and response_data["Data"]["Initiation"]["EndToEndIdentification"]:

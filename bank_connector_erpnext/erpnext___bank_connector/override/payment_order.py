@@ -21,6 +21,8 @@ class CustomPaymentOrder(PaymentOrder):
 			default_mode_of_transfer = frappe.get_doc("Mode of Transfer", self.default_mode_of_transfer)
 
 		for payment in self.summary:
+			if default_mode_of_transfer:
+				payment.mode_of_transfer = default_mode_of_transfer.mode
 			if payment.mode_of_transfer:
 				mode_of_transfer = frappe.get_doc("Mode of Transfer", payment.mode_of_transfer)
 			else:

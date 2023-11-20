@@ -14,6 +14,7 @@ def make_bank_payment(docname):
 		if not i.payment_initiated:
 			invoices = []
 			payment_response = process_payment(i, payment_order_doc.company_bank_account, invoices=invoices)
+			print(payment_response)
 			if "payment_status" in payment_response and payment_response["payment_status"] == "Initiated":
 				frappe.db.set_value("Payment Order Summary", i.name, "payment_initiated", 1)
 				frappe.db.set_value("Payment Order Summary", i.name, "payment_status", "Initiated")
@@ -196,10 +197,12 @@ def process_payment(payment_info, company_bank_account, invoices = None):
 
 
 	response = requests.request("POST", url, headers=headers, data=json.dumps(payload))
+	print("\n\nresponse")
 	print(response.text)
 
 	if response.status_code == 200:
 		response_data = json.loads(response.text)
+		print(response_data)
 		if "message" in response_data and response_data["message"]:
 			if "payment_status" in response_data["message"] and response_data["message"]["payment_status"] == "Initiated":
 				return {"payment_status": "Initiated", "message": ""}
@@ -230,16 +233,47 @@ def get_response(payment_info, company_bank_account):
 		return
 	
 	response_data = json.loads(response.text)
+	print("\n\nresponse",response_data)
 	if "message" in response_data and response_data["message"]:
 		if "payment_status" in response_data["message"] and response_data["message"]["payment_status"] == "Processed":
 			if response_data["message"]["reference_number"]:
 				frappe.db.set_value("Payment Order Summary", payment_info.name, "reference_number", response_data["message"]["reference_number"])
 				frappe.db.set_value("Payment Entry", payment_info.payment_entry, "reference_no", response_data["message"]["reference_number"])
 			frappe.db.set_value("Payment Order Summary", payment_info.name, "payment_status", "Processed")
+			send_mail_to_party(payment_info)
 		elif "payment_status" in response_data["message"] and response_data["message"]["payment_status"] in ["Rejected", "Failed"]:
 			frappe.db.set_value("Payment Order Summary", payment_info.name, "payment_status", response_data["message"]["payment_status"])
-			payment_entry_doc = frappe.get_doc("Payment Entry", payment_info.payment_entry)
+			payment_entry = payment_info.payment_entry
+			frappe.db.set_value("Payment Order Reference",{"parent":payment_info.parent,"reference_name":payment_entry},"reference_doctype","")
+			frappe.db.set_value("Payment Order Reference",{"parent":payment_info.parent,"reference_name":payment_entry},"reference_name","")
+			payment_entry_doc = frappe.get_doc("Payment Entry", payment_entry)
 			payment_entry_doc.cancel()
 		elif "reference_number" in response_data["message"] and response_data["message"]["reference_number"]:
 			frappe.db.set_value("Payment Order Summary", payment_info.name, "reference_number", response_data["message"]["reference_number"])
 			frappe.db.set_value("Payment Entry", payment_info.payment_entry, "reference_no", response_data["message"]["reference_number"])
+
+def send_mail_to_party(payment_info):
+	if not hasattr(payment_info,"party_type") or not hasattr(payment_info,"party"):
+		return
+	if payment_info.party_type == "Supplier" and payment_info.party:
+		if frappe.db.get_value("Supplier",payment_info.party,"supplier_primary_contact"):
+			party_email = frappe.db.get_value("Contact",frappe.db.get_value("Supplier",payment_info.party,"supplier_primary_contact"),"email_id")
+		elif frappe.db.get_value("Supplier",payment_info.party,"supplier_primary_address"):
+			party_email = frappe.db.get_value("Address",frappe.db.get_value("Supplier",payment_info.party,"supplier_primary_address"),"email_id")
+		else:
+			party_email = frappe.db.get_value("Address",frappe.db.get_value("Dynamic Link",{"link_doctype":payment_info.party_type,"link_name":payment_info.party,"parenttype":"Address"},"parent"),"email_id") or frappe.db.get_value("Contact",frappe.db.get_value("Dynamic Link",{"link_doctype":payment_info.party_type,"link_name":payment_info.party,"parenttype":"Contact"},"parent"),"email_id")
+		if not party_email:
+			frappe.msgprint("Unable to send mail, Party Email not found")
+		message = "Dear {0},<br><br>The Payment of <b>Rs {1}</b> has been credited to your Account".format(payment_info.party,payment_info.amount)
+		subject = frappe.db.get_value("Bank Account",payment_info.bank_account,"bank")
+		try:
+			frappe.sendmail(
+				recipients=[party_email],
+				message=message,
+				subject=subject,
+				send_priority=1,
+				is_notification = True,
+			)
+			return "Email Sent"
+		except Exception as e:
+			frappe.log_error(str(e))
