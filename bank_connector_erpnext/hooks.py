@@ -72,6 +72,7 @@ doctype_js = {
 # after_install = "bank_connector_erpnext.install.after_install"
 after_install = "bank_connector_erpnext.erpnext___bank_connector.install.after_install"
 
+after_migrate = "bank_connector_erpnext.migrate.after_migrate"
 
 # Uninstallation
 # ------------

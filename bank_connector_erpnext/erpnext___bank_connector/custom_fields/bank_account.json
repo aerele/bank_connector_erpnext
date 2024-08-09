@@ -1,0 +1,10 @@
+{
+    "Bank Account": [
+        {
+                "fieldname": "custom_is_import",
+                "fieldtype": "Check",
+                "insert_after": "is_company_account",
+                "label": "Is Import"
+        }
+    ]
+}
